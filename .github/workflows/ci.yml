@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 permissions:
   contents: read
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,11 +22,30 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          path: ~/.m2
-          key: maven-${{ hashFiles('**/pom.xml') }}
+           distribution: temurin
+           java-version: '21'
+        cache: maven
 
       - name: Build project
         run: ./mvnw clean verify
+        
+      - name: Run OWASP Dependency Check
+        run: ./mvnw org.owasp:dependency-check-maven:check
+      
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        with:
+        name: dependency-check-report
+        path: target/dependency-check-report.html
+
+      - name: Build Docker Image
+        run: docker build -t secure-bank-app:${{ github.sha }} .
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+         image-ref: secure-bank-app:${{ github.sha }}
+        format: table
